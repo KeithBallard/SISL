@@ -16,8 +16,8 @@ INCLUDE_DIRECTORIES(
 # Make the sisl library
 
 # Set the variables for SISL
-set( SISL_INCLUDE     ${CMAKE_SOURCE_DIR}/include )
-set( SISL_SRC         ${CMAKE_SOURCE_DIR}/src )
+set( SISL_INCLUDE     ${PROJECT_SOURCE_DIR}/include )
+set( SISL_SRC         ${PROJECT_SOURCE_DIR}/src )
 
 file( GLOB_RECURSE SISL_HEADER_LIST "${SISL_INCLUDE}/*.h" )
 file( GLOB_RECURSE SISL_SOURCE_LIST "${SISL_SRC}/*.h" "${SISL_SRC}/*.c" )
