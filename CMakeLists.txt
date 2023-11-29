@@ -1,6 +1,7 @@
-PROJECT(sisl)
+cmake_minimum_required(VERSION 3.8)
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+cmake_policy(SET CMP0048 NEW)
+project(SISL VERSION 1.0.0 LANGUAGES C CXX)
 
 # Organize the project in folders (VS only?)
 SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -11,14 +12,36 @@ INCLUDE_DIRECTORIES(
   ${sisl_SOURCE_DIR}/include
   )
 
-
+#########################################################################################
 # Make the sisl library
 
-FILE(GLOB sisl_SRCS src/*.c include/*.h)
-ADD_LIBRARY(sisl ${sisl_SRCS})
+# Set the variables for SISL
+set( SISL_INCLUDE     ${CMAKE_SOURCE_DIR}/include )
+set( SISL_SRC         ${CMAKE_SOURCE_DIR}/src )
+
+file( GLOB_RECURSE SISL_HEADER_LIST "${SISL_INCLUDE}/*.h" )
+file( GLOB_RECURSE SISL_SOURCE_LIST "${SISL_SRC}/*.h" "${SISL_SRC}/*.c" )
+	
+# Create target
+add_library(sisl STATIC)
+#set_target_properties(sisl PROPERTIES LINKER_LANGUAGE CXX)
+# Add the header includes and headers to the library
+target_include_directories(sisl PUBLIC
+    $<BUILD_INTERFACE:${SISL_INCLUDE}>
+    $<INSTALL_INTERFACE:include>)
+# Add headers in the include folder as PUBLIC so downstream
+# targets have access to them
+target_sources(sisl PUBLIC ${SISL_HEADER_LIST})
+# Add headers and sources in the source folder as PRIVATE as they
+# will not be needed downstream
+target_sources(sisl PRIVATE ${SISL_SOURCE_LIST})
+# Add an alias so that a library can be used inside the build tree, eg when testing
+add_library(Sisl::Sisl ALIAS sisl)
+
 IF(CMAKE_COMPILER_IS_GNUCC)
-    TARGET_LINK_LIBRARIES(sisl m)
+    TARGET_LINK_LIBRARIES(sisl PUBLIC m)
 ENDIF(CMAKE_COMPILER_IS_GNUCC)
+
 SET_PROPERTY(TARGET sisl
   PROPERTY FOLDER "sisl/Libs")
 
@@ -26,7 +49,6 @@ SET_PROPERTY(TARGET sisl
 #IF(NOT WIN32)
 #  SET_TARGET_PROPERTIES(sisl PROPERTIES COMPILE_FLAGS "-fPIC")
 #ENDIF(NOT WIN32)
-
 
 # Set various compiler flags
 IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -185,33 +207,47 @@ IF(sisl_COMPILE_VIEWER)
   ENDFOREACH(app)
 ENDIF()
 
-
+##################################################################################################
 # 'install' target
 
-IF(WIN32)
-  # Windows
-  SET(CMAKE_INSTALL_PREFIX CACHE INTERNAL "")
-  SET(sisl_INSTALL_PREFIX "$ENV{PROGRAMFILES}/SINTEF/sisl"
-    CACHE PATH "Path to install SISL")
-  INSTALL(TARGETS sisl DESTINATION ${sisl_INSTALL_PREFIX}/lib)
-  INSTALL(DIRECTORY include/
-    DESTINATION ${sisl_INSTALL_PREFIX}/include
-    FILES_MATCHING PATTERN "*.h"
-    PATTERN ".svn" EXCLUDE
-    )
-ELSE(WIN32)
-  # Linux
-  # lib
-  INSTALL(TARGETS sisl DESTINATION lib COMPONENT sisl)
-  # include
-  INSTALL(DIRECTORY include/
-    COMPONENT sisl-dev
-    DESTINATION include
-    FILES_MATCHING PATTERN "*.h"
-    PATTERN ".svn" EXCLUDE
-    )
-ENDIF(WIN32)
+include(GNUInstallDirs)
+set(INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/Sisl)
 
+# Install the sisl target (library and headers)
+install(
+    TARGETS sisl
+    EXPORT SislTargets
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    INCLUDES DESTINATION include
+)
+# This is required so that the exported target has the name Sisl and not sisl
+set_target_properties(sisl PROPERTIES EXPORT_NAME Sisl)
+
+# Create a ConfigVersion.cmake file
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/SislConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+# Create the package config file for find_package(Sisl)
+configure_package_config_file(
+    ${CMAKE_CURRENT_LIST_DIR}/cmake/SislConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/SislConfig.cmake
+    INSTALL_DESTINATION ${INSTALL_CONFIGDIR}
+)
+
+# Install the config and config version files
+# Note: if you write custom find modules, add them here
+# Refer to https://github.com/pabloariasal/modern-cmake-sample/blob/cfda7b51ff915409fd61d4f2e75b63032bedb182/libjsonutils/CMakeLists.txt
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/SislConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/SislConfigVersion.cmake
+	  ${CMAKE_CURRENT_BINARY_DIR}/SislTargets.cmake
+    DESTINATION ${INSTALL_CONFIGDIR}
+)
 
 # CPack stuff
 IF(NOT GoTools_ALL_COMPILE)
@@ -221,3 +257,13 @@ IF(NOT GoTools_ALL_COMPILE)
 ENDIF(NOT GoTools_ALL_COMPILE)
 
 SET(CPACK_STRIP_FILES ${CPACK_STRIP_FILES} libsisl.so)
+
+#########################################################################################
+# Exports
+
+# Export just the sisl target (not tests, etc.)
+export(
+    TARGETS sisl
+    FILE ${CMAKE_CURRENT_BINARY_DIR}/SislTargets.cmake
+    NAMESPACE Sisl::
+)
